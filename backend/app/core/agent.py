@@ -1,11 +1,22 @@
 """
 LangGraph agent for reconciliation logic discovery.
 """
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
 from typing import Dict, Any, Optional
 import logging
 import pandas as pd
+
+# LangGraph imports with fallback for different versions
+try:
+    from langgraph.graph import StateGraph, END
+except ImportError:
+    from langgraph.graph import StateGraph
+    END = "__end__"
+
+try:
+    from langgraph.checkpoint.memory import MemorySaver
+except ImportError:
+    # Fallback for older versions
+    MemorySaver = None
 
 from app.core.state import ReconciliationState, create_initial_state
 from app.core.nodes import (
@@ -98,7 +109,7 @@ def create_reconciliation_graph() -> StateGraph:
     return workflow
 
 
-def compile_agent(checkpointer: Optional[MemorySaver] = None):
+def compile_agent(checkpointer=None):
     """
     Compile the reconciliation agent with optional checkpointing.
 
@@ -110,10 +121,13 @@ def compile_agent(checkpointer: Optional[MemorySaver] = None):
     """
     graph = create_reconciliation_graph()
 
-    if checkpointer is None:
+    if checkpointer is None and MemorySaver is not None:
         checkpointer = MemorySaver()
 
-    return graph.compile(checkpointer=checkpointer)
+    if checkpointer:
+        return graph.compile(checkpointer=checkpointer)
+    else:
+        return graph.compile()
 
 
 class ReconciliationAgent:
@@ -125,7 +139,7 @@ class ReconciliationAgent:
     """
 
     def __init__(self):
-        self.checkpointer = MemorySaver()
+        self.checkpointer = MemorySaver() if MemorySaver else None
         self.agent = compile_agent(self.checkpointer)
         self.sessions: Dict[str, ReconciliationState] = {}
 
