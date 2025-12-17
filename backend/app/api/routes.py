@@ -28,8 +28,17 @@ from app.models.schemas import (
 )
 from app.services.file_parser import file_parser
 from app.services.n8n_exporter import n8n_exporter
-from app.core.agent import reconciliation_agent
 from app.config import settings
+
+# Lazy import agent to avoid startup crashes
+reconciliation_agent = None
+
+def get_agent():
+    global reconciliation_agent
+    if reconciliation_agent is None:
+        from app.core.agent import ReconciliationAgent
+        reconciliation_agent = ReconciliationAgent()
+    return reconciliation_agent
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +147,7 @@ async def start_reconciliation(
     # Run reconciliation in background
     async def run_reconciliation():
         try:
-            result = await reconciliation_agent.start_reconciliation(
+            result = await get_agent().start_reconciliation(
                 session_id=session_id,
                 df_a=session["df_a"],
                 df_b=session["df_b"],
@@ -225,7 +234,7 @@ async def submit_feedback(
 
     async def process_feedback():
         try:
-            result = await reconciliation_agent.submit_feedback(
+            result = await get_agent().submit_feedback(
                 session_id=session_id,
                 feedback=request.feedback
             )
