@@ -1,7 +1,7 @@
 """
 API routes for the Reconciliation Agent.
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Query, Path
 from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Optional
 import uuid
@@ -258,7 +258,7 @@ async def submit_feedback(
 @router.get("/sessions/{session_id}/export/data")
 async def export_data(
     session_id: str,
-    format: str = Query("csv", regex="^(csv|xlsx)$")
+    format: str = Query("csv", pattern="^(csv|xlsx)$")
 ):
     """Export reconciled data as CSV or Excel."""
     if session_id not in sessions:
@@ -371,7 +371,7 @@ async def download_n8n_workflow(session_id: str):
 @router.get("/sessions/{session_id}/preview/{dataset}")
 async def get_preview(
     session_id: str,
-    dataset: str = Query(..., regex="^(a|b)$")
+    dataset: str = Path(..., pattern="^(a|b)$")
 ):
     """Get preview of a dataset."""
     if session_id not in sessions:
