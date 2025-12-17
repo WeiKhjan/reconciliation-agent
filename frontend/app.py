@@ -166,7 +166,7 @@ if st.session_state.step == 1:
                 )
 
                 st.session_state.upload_response = upload_response
-                st.session_state.hint = hint
+                st.session_state.user_hint = hint  # Store hint with different key
                 st.session_state.upload_complete = True
                 st.session_state.step = 2
                 st.success("Files uploaded successfully!")
@@ -205,7 +205,7 @@ elif st.session_state.step == 2:
             try:
                 api_client.start_reconciliation(
                     st.session_state.session_id,
-                    st.session_state.get("hint")
+                    st.session_state.get("user_hint")
                 )
 
                 # Poll for status
