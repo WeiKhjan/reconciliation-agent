@@ -49,15 +49,30 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+# Track route loading status
+routes_loaded = False
+routes_error = None
+
 # Import and register routes directly (not in startup event)
 try:
     from app.api.routes import router
     app.include_router(router)
+    routes_loaded = True
     logger.info("API routes loaded successfully")
 except Exception as e:
+    routes_error = str(e)
     logger.error(f"Failed to load routes: {e}")
     import traceback
     traceback.print_exc()
+
+@app.get("/debug")
+async def debug_info():
+    """Debug endpoint to check route loading status."""
+    return {
+        "routes_loaded": routes_loaded,
+        "routes_error": routes_error,
+        "registered_routes": [r.path for r in app.routes]
+    }
 
 if __name__ == "__main__":
     import uvicorn
