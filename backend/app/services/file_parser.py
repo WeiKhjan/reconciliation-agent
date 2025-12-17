@@ -146,7 +146,10 @@ class FileParser:
         filename: str
     ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Parse PDF using pdfplumber."""
-        import pdfplumber
+        try:
+            import pdfplumber
+        except ImportError:
+            raise ValueError("pdfplumber not available. Please use CSV or Excel format.")
 
         all_tables = []
         pages_processed = 0
@@ -188,7 +191,10 @@ class FileParser:
         filename: str
     ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Fallback PDF parser using PyMuPDF for text extraction."""
-        import fitz  # PyMuPDF
+        try:
+            import fitz  # PyMuPDF
+        except ImportError:
+            raise ValueError("PyMuPDF not available. Please use CSV or Excel format.")
 
         doc = fitz.open(stream=file_content, filetype="pdf")
         all_text = []
