@@ -1,0 +1,27 @@
+timestamp,message
+2025-12-17 16:59:47,[Zeabur] Pod/build-6942e17f16cce45d679827b6-tbl9z - Scheduled: Successfully assigned environment-6942dc8a4947dd57c4fd08c8/build-6942e17f16cce45d679827b6-tbl9z to ip-172-31-32-78.ap-northeast-1.compute.internal
+2025-12-17 16:59:49,"[Zeabur] Pod/build-6942e17f16cce45d679827b6-tbl9z - Pulling: Pulling image ""793407052998.dkr.ecr.ap-northeast-1.amazonaws.com/zeabur/builder:latest"""
+2025-12-17 16:59:51,"[Zeabur] Pod/build-6942e17f16cce45d679827b6-tbl9z - Pulled: Successfully pulled image ""793407052998.dkr.ecr.ap-northeast-1.amazonaws.com/zeabur/builder:latest"" in 1.545s (1.545s including waiting). Image size: 116078051 bytes."
+2025-12-17 16:59:51,[Zeabur] Pod/build-6942e17f16cce45d679827b6-tbl9z - Created: Created container: builder
+2025-12-17 16:59:51,[Zeabur] Pod/build-6942e17f16cce45d679827b6-tbl9z - Started: Started container builder
+2025-12-17 17:02:20,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Scheduled: Successfully assigned environment-6942dc8a4947dd57c4fd08c8/service-6942dcabbd6c58be589d304e-898846495-8jl5d to ip-172-31-16-106.ap-northeast-1.compute.internal
+2025-12-17 17:02:21,"[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Pulling: Pulling image ""registry-oci.zeabur.cloud/e-6942dc8a4947dd57c4fd08c8/s-6942dcabbd6c58be589d304e:d-6942e17f16cce45d679827b6"""
+2025-12-17 17:02:46,"[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Pulled: Successfully pulled image ""registry-oci.zeabur.cloud/e-6942dc8a4947dd57c4fd08c8/s-6942dcabbd6c58be589d304e:d-6942e17f16cce45d679827b6"" in 25.67s (25.67s including waiting). Image size: 595004455 bytes."
+2025-12-17 17:02:47,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Created: Created container: reconciliation-agent
+2025-12-17 17:02:47,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Started: Started container reconciliation-agent
+2025-12-17 17:02:53,"[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Pulling: Pulling image ""registry-oci.zeabur.cloud/e-6942dc8a4947dd57c4fd08c8/s-6942dcabbd6c58be589d304e:d-6942e17f16cce45d679827b6"""
+2025-12-17 17:02:54,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Started: Started container reconciliation-agent
+2025-12-17 17:02:54,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Created: Created container: reconciliation-agent
+2025-12-17 17:02:54,"[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Pulled: Successfully pulled image ""registry-oci.zeabur.cloud/e-6942dc8a4947dd57c4fd08c8/s-6942dcabbd6c58be589d304e:d-6942e17f16cce45d679827b6"" in 1.172s (1.172s including waiting). Image size: 595004455 bytes."
+2025-12-17 17:02:55,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - BackOff: Back-off restarting failed container reconciliation-agent in pod service-6942dcabbd6c58be589d304e-898846495-8jl5d_environment-6942dc8a4947dd57c4fd08c8(5fdf5205-fc9f-4787-a234-785f5d3af45f)
+2025-12-17 17:03:10,"[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Pulling: Pulling image ""registry-oci.zeabur.cloud/e-6942dc8a4947dd57c4fd08c8/s-6942dcabbd6c58be589d304e:d-6942e17f16cce45d679827b6"""
+2025-12-17 17:03:11,"[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Pulled: Successfully pulled image ""registry-oci.zeabur.cloud/e-6942dc8a4947dd57c4fd08c8/s-6942dcabbd6c58be589d304e:d-6942e17f16cce45d679827b6"" in 485ms (485ms including waiting). Image size: 595004455 bytes."
+2025-12-17 17:03:11,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Created: Created container: reconciliation-agent
+2025-12-17 17:03:11,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Started: Started container reconciliation-agent
+2025-12-17 17:03:12,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - BackOff: Back-off restarting failed container reconciliation-agent in pod service-6942dcabbd6c58be589d304e-898846495-8jl5d_environment-6942dc8a4947dd57c4fd08c8(5fdf5205-fc9f-4787-a234-785f5d3af45f)
+2025-12-17 17:03:23,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - BackOff: Back-off restarting failed container reconciliation-agent in pod service-6942dcabbd6c58be589d304e-898846495-8jl5d_environment-6942dc8a4947dd57c4fd08c8(5fdf5205-fc9f-4787-a234-785f5d3af45f)
+2025-12-17 17:03:37,"[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Pulling: Pulling image ""registry-oci.zeabur.cloud/e-6942dc8a4947dd57c4fd08c8/s-6942dcabbd6c58be589d304e:d-6942e17f16cce45d679827b6"""
+2025-12-17 17:03:38,"[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Pulled: Successfully pulled image ""registry-oci.zeabur.cloud/e-6942dc8a4947dd57c4fd08c8/s-6942dcabbd6c58be589d304e:d-6942e17f16cce45d679827b6"" in 362ms (362ms including waiting). Image size: 595004455 bytes."
+2025-12-17 17:03:38,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Created: Created container: reconciliation-agent
+2025-12-17 17:03:38,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - Started: Started container reconciliation-agent
+2025-12-17 17:03:38,[Zeabur] Pod/service-6942dcabbd6c58be589d304e-898846495-8jl5d - BackOff: Back-off restarting failed container reconciliation-agent in pod service-6942dcabbd6c58be589d304e-898846495-8jl5d_environment-6942dc8a4947dd57c4fd08c8(5fdf5205-fc9f-4787-a234-785f5d3af45f)
