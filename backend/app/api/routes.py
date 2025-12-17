@@ -1,7 +1,7 @@
 """
 API routes for the Reconciliation Agent.
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Query, Path
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Path
 from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Optional
 import uuid
@@ -129,10 +129,11 @@ async def upload_files(
 @router.post("/sessions/{session_id}/reconcile")
 async def start_reconciliation(
     session_id: str,
-    request: ReconcileRequest,
-    background_tasks: BackgroundTasks
+    request: ReconcileRequest
 ):
     """Start the reconciliation process."""
+    import asyncio
+
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -144,9 +145,10 @@ async def start_reconciliation(
     session["status"] = SessionStatus.ANALYZING
     session["hint"] = request.hint
 
-    # Run reconciliation in background
+    # Run reconciliation in background using asyncio.create_task
     async def run_reconciliation():
         try:
+            logger.info(f"Session {session_id}: Starting reconciliation...")
             result = await get_agent().start_reconciliation(
                 session_id=session_id,
                 df_a=session["df_a"],
@@ -160,8 +162,11 @@ async def start_reconciliation(
             session["status"] = SessionStatus.ERROR
             session["error"] = str(e)
             logger.error(f"Session {session_id}: Reconciliation failed - {e}")
+            import traceback
+            traceback.print_exc()
 
-    background_tasks.add_task(run_reconciliation)
+    # Use asyncio.create_task for proper async execution
+    asyncio.create_task(run_reconciliation())
 
     return {
         "session_id": session_id,
@@ -222,17 +227,18 @@ async def get_results(session_id: str):
 @router.post("/sessions/{session_id}/feedback", response_model=FeedbackResponse)
 async def submit_feedback(
     session_id: str,
-    request: FeedbackRequest,
-    background_tasks: BackgroundTasks
+    request: FeedbackRequest
 ):
     """Submit feedback to refine the reconciliation."""
+    import asyncio
+
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
     session = sessions[session_id]
     session["status"] = SessionStatus.REFINING
 
-    async def process_feedback():
+    async def process_feedback_task():
         try:
             result = await get_agent().submit_feedback(
                 session_id=session_id,
@@ -245,8 +251,10 @@ async def submit_feedback(
             session["status"] = SessionStatus.ERROR
             session["error"] = str(e)
             logger.error(f"Session {session_id}: Feedback processing failed - {e}")
+            import traceback
+            traceback.print_exc()
 
-    background_tasks.add_task(process_feedback)
+    asyncio.create_task(process_feedback_task())
 
     return FeedbackResponse(
         session_id=session_id,
