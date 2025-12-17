@@ -81,6 +81,25 @@ async def debug_info():
         "registered_routes": [r.path for r in app.routes]
     }
 
+@app.get("/test-llm")
+async def test_llm():
+    """Test endpoint to verify LLM is working."""
+    try:
+        from app.services.llm_client import get_llm
+        llm = get_llm()
+        response = await llm.ainvoke([{"role": "user", "content": "Say 'LLM working!' in exactly 2 words."}])
+        return {
+            "success": True,
+            "response": response.content
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8080)
