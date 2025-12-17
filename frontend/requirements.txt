@@ -1,0 +1,14 @@
+# Streamlit
+streamlit>=1.31.0
+
+# Data processing
+pandas>=2.2.0
+
+# HTTP client
+httpx>=0.26.0
+
+# Visualization
+plotly>=5.18.0
+
+# Environment
+python-dotenv>=1.0.0

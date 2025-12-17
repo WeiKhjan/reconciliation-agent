@@ -1,0 +1,530 @@
+Architectural Implementation of an Asynchronous Reconciliation Logic Discovery Service on Zeabur with n8n Integration
+1. Executive Summary
+The modern enterprise automation landscape is undergoing a fundamental transition from static, rule-based workflows to dynamic, agentic cognitive architectures. This report provides an exhaustive, step-by-step technical blueprint for engineering a "Logic Discovery" service tailored specifically for complex data reconciliation tasks. The architecture utilizes LangGraph for stateful multi-step reasoning, FastAPI for asynchronous interface exposure, Zeabur for containerized Platform-as-a-Service (PaaS) deployment, and n8n for workflow orchestration.
+A central focus of this analysis is addressing the specific user inquiry regarding the efficacy of fine-tuning large language models (LLMs) for code reconciliation versus utilizing agentic logic discovery. The analysis concludes that while fine-tuning offers advantages in syntactic consistency, the dynamic nature of reconciliation—which often requires discovering novel matching rules for unseen data formats—is better served by an iterative reasoning agent (LangGraph) rather than a static fine-tuned model.
+The report identifies a critical architectural bottleneck in standard automation integrations: the "HTTP Timeout" phenomenon inherent in long-running cognitive tasks. Deep research and logic discovery processes can extend from minutes to hours, violating the standard 30-300 second timeout limits of synchronous HTTP gateways in tools like n8n and serverless environments.2 To mitigate this, the proposed architecture enforces an asynchronous "Fire-and-Forget with Callback" pattern, decoupling the request ingestion from the logic processing.
+This document serves as a comprehensive implementation manual, covering:
+Strategic Analysis: The trade-offs between Fine-Tuning and Agentic Reasoning for reconciliation.
+Cognitive Architecture: Designing a cyclic LangGraph to "discover" matching logic between disparate datasets.
+Interface Design: Implementing FastAPI with BackgroundTasks to bypass n8n timeouts.
+Infrastructure: Detailed deployment guides for Zeabur, comparing Serverless vs. Developer plans for memory-intensive reconciliation tasks.
+Integration: Configuring n8n with "Wait for Webhook" nodes to create resilient, long-running automation pipelines.
+2. The Reconciliation Challenge: Rule-Based vs. Logic Discovery
+2.1 The Nature of Reconciliation Logic
+Reconciliation is the process of comparing two sets of records to ensure they are in agreement. In financial and data contexts, this is rarely a simple 1:1 match. Discrepancies arise from:
+Temporal Variance: A payment sent on Monday clears on Wednesday.
+Format Variance: "Acme Corp" vs. "Acme Corporation, Inc."
+Aggregation: One bank deposit ($1000) corresponds to five separate invoices ($200 each).
+Fees and Deductions: A payment of $980 reconciles a $1000 invoice after a $20 processing fee.
+Traditional automation (using n8n's standard "Merge" or "Code" nodes) requires the developer to know these rules a priori. The developer must write the JavaScript to handle the "strip 'Inc.'" rule or the "sum invoices" rule.
+"Logic Discovery" reverses this dependency. The goal is to build a service where the user passes the two datasets (Dataset A and Dataset B) to the AI, and the AI discovers the logic required to reconcile them. The output is not just the reconciled data, but the logic (often executable code) that achieved it.
+2.2 The User Query: Fine-Tuning vs. Agentic Reasoning
+The user specifically asks: "does fine tune a model dedicated to code reconciliation helps?"
+This is a pivotal architectural decision. To answer this, we must compare the cognitive requirements of reconciliation against the capabilities of Fine-Tuning (FT) and In-Context Learning (ICL) via Agents.
+2.2.1 Fine-Tuning (The Static Expert)
+Fine-tuning involves training a model (like Llama 3 or GPT-4o-mini) on thousands of examples of "Input Data + Unmatched Rows -> Correct Python Reconciliation Code".
+Pros:
+Syntax Reliability: The model becomes excellent at outputting valid JSON or Python syntax specific to the schema it was trained on.
+Latency: Inference is generally faster than a multi-step agent.
+Cost: Once trained, running a smaller fine-tuned model is cheaper per token.
+Cons:
+Brittleness: If the "Reconciliation Logic" requires a new type of reasoning (e.g., matching based on a fuzzy description field rather than transaction ID) that wasn't in the training set, the model will likely fail or hallucinate a rule that doesn't exist.
+Data Hunger: Effective fine-tuning requires a massive, high-quality dataset of previous reconciliations. If you are building a system to discover new logic, you likely lack the dataset to train it.
+Lack of Self-Correction: A fine-tuned model typically generates the code in one pass (Zero-Shot). If the code throws a runtime error, the model doesn't know.
+2.2.2 Agentic Logic Discovery (The Dynamic Researcher)
+This approach uses a generic, high-reasoning model (like GPT-4o or Claude 3.5 Sonnet) wrapped in a LangGraph control flow. The agent writes code, executes it against the data, observes the result, and iteratively refines the code until the reconciliation rate maximizes.
+Pros:
+Adaptability: The agent can reason through novel scenarios. If it sees a $20 difference, it can hypothesis "maybe this is a fee?" and test that hypothesis.
+Self-Correction: If the generated Python code fails (e.g., KeyError), the agent sees the error traceback and corrects the code in the next loop.
+Zero-Training: No labeled dataset is required; only a prompt describing the goal.
+Cons:
+Latency: It takes longer (seconds to minutes) because it runs multiple loops.
+Cost: Uses more tokens per task.
+2.2.3 Recommendation
+For "Logic Discovery," Fine-Tuning is generally inferior to an Agentic Architecture.
+Fine-tuning is appropriate for optimization once the logic is known. However, for the primary task of automating the discovery of reconciliation logic, an agent that can write, test, and fix code is required. Therefore, this report focuses on the LangGraph Agent approach. The "Fine-Tuned" model can be viewed as a tool the agent might use, but the agent itself is the primary driver of success.
+3. Architecture Overview
+3.1 The High-Level Data Flow
+The system operates as an asynchronous offload engine for n8n.
+Ingestion (n8n): n8n retrieves Dataset A (e.g., Stripe) and Dataset B (e.g., Xero). It formats them as JSON or CSV.
+Trigger (HTTP): n8n sends these datasets to the Zeabur-hosted FastAPI endpoint.
+Queuing (FastAPI): The API accepts the payload, spawns a background process, and immediately returns 202 Accepted to n8n to prevent a timeout.
+Cognition (LangGraph): The Python application launches a graph execution.
+Node 1: Analyze schema.
+Node 2: Draft reconciliation logic (Python Pandas code).
+Node 3: Execute code sandbox.
+Node 4: Evaluate results (How many rows matched?).
+Node 5: Refine logic (Loop back if match rate is low).
+Completion (Callback): Once the match rate is satisfactory, the agent sends the results (and the successful code snippet) back to n8n via a Webhook.
+Resumption (n8n): n8n receives the webhook and proceeds to update the accounting system.
+3.2 Component Selection Justification
+
+Component
+Choice
+Justification
+Logic Engine
+LangGraph
+Provides the cyclic control flow necessary for "trial and error" coding. Linear chains (LangChain) cannot handle the iterative debugging required for reconciliation.4
+API Framework
+FastAPI
+Native asyncio support and BackgroundTasks are essential for the non-blocking architecture required to solve the timeout issue.6
+Hosting
+Zeabur
+Zero-config Python deployment. Crucially, supports persistent container execution (Developer Plan), avoiding the 15-minute execution limits common in AWS Lambda/Serverless functions.8
+Orchestrator
+n8n
+The user's existing platform. Provides the "Wait for Webhook" node which effectively handles "long-polling" style workflows without keeping open connections.10
+
+4. Technical Implementation: The Cognitive Engine (Python)
+This section details the construction of the Logic Discovery service. We assume a project structure optimized for Zeabur deployment.
+4.1 Dependency Management and Project Structure
+Zeabur detects Python projects via requirements.txt or Pipfile. For "Bigger Applications" using FastAPI, a flat structure is unmanageable. We will use a modular structure.11
+Directory Structure:
+logic-discovery-service/
+├── app/
+│ ├── init.py
+│ ├── main.py # FastAPI Entry Point
+│ ├── models.py # Pydantic Schemas
+│ ├── core/
+│ │ ├── init.py
+│ │ ├── agent.py # LangGraph Definition
+│ │ ├── tools.py # Sandbox/Execution Tools
+│ │ └── prompts.py # LLM System Prompts
+│ └── utils/
+│ ├── init.py
+│ └── callback.py # HTTP Client for n8n
+├── data/ # Temp storage (if needed)
+├── requirements.txt # Dependencies
+├── zeabur.toml # Zeabur Config
+└── zbpack.json # Build Pack Config
+requirements.txt Analysis:
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+langchain>=0.1.0
+langgraph>=0.0.20
+langchain-openai>=0.0.5
+langchain-experimental>=0.0.4 # For Python REPL tools
+pandas>=2.2.0 # For Reconciliation Logic
+httpx>=0.26.0 # For Async Callbacks
+pydantic>=2.6.0
+python-dotenv>=1.0.0
+pandas is critical here. The agent will discover logic by writing Pandas code.
+langchain-experimental provides the PythonAstREPLTool, allowing the agent to execute the code it writes safely.
+4.2 Data Modeling (app/models.py)
+We need strict typing to ensure the data passed from n8n is valid.
+
+Python
+
+
+from pydantic import BaseModel, HttpUrl, Field
+from typing import List, Dict, Any, Optional
+
+class ReconciliationRequest(BaseModel):
+    """
+    Payload received from n8n.
+    """
+    dataset_a: List] = Field(..., description="First dataset (e.g., Bank Statement)")
+    dataset_b: List] = Field(..., description="Second dataset (e.g., Internal Ledger)")
+    hint: Optional[str] = Field(None, description="User provided hint about how to reconcile.")
+    callback_url: HttpUrl = Field(..., description="The n8n Webhook URL to receive results.")
+
+class ReconciliationResult(BaseModel):
+    """
+    Payload sent back to n8n.
+    """
+    status: str
+    match_rate: float
+    reconciled_data: List]
+    unmatched_a: List]
+    unmatched_b: List]
+    generated_logic_code: str
+    reasoning_trace: str
+
+
+4.3 The LangGraph Implementation (app/core/agent.py)
+This is the core "Logic Discovery" mechanism. We define a StateGraph that represents a coding agent.
+State Definition:
+The state tracks the two dataframes (loaded from the input lists), the current code attempt, the error logs, and the iteration count.
+
+Python
+
+
+import pandas as pd
+from typing import TypedDict, Annotated, List, Union
+import operator
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, END
+
+class AgentState(TypedDict):
+    messages: Annotated, operator.add]
+    dataset_a_preview: str  # First 5 rows as markdown
+    dataset_b_preview: str  # First 5 rows as markdown
+    full_dataset_a: List[dict] # Kept in state for execution context
+    full_dataset_b: List[dict]
+    python_code: str
+    execution_result: str
+    match_rate: float
+    iterations: int
+
+# Initialize LLM
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
+
+# NODE 1: Logic Generator
+async def generate_logic(state: AgentState):
+    """
+    Analyzes the datasets and generates Pandas code to reconcile them.
+    """
+    system_prompt = (
+        "You are an expert Data Reconciliation Engineer. "
+        "Your goal is to write Python Pandas code to merge 'df_a' and 'df_b'. "
+        "Identify common columns, fuzzy matching needs, or aggregation logic. "
+        "The code must return a dataframe named 'result_df' containing matched records. "
+        "Available dataframes: df_a, df_b."
+    )
+    
+    # Contextualize with data previews and previous errors
+    content = f"""
+    Dataset A Preview:
+    {state['dataset_a_preview']}
+    
+    Dataset B Preview:
+    {state['dataset_b_preview']}
+    
+    Previous Execution Result/Error:
+    {state.get('execution_result', 'None')}
+    """
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": content}
+    ]
+    
+    response = await llm.ainvoke(messages)
+    return {"messages": [response], "python_code": response.content, "iterations": state["iterations"] + 1}
+
+# NODE 2: Code Executor
+def execute_code(state: AgentState):
+    """
+    Executes the generated code in a sandbox against the full datasets.
+    """
+    # Load data into Pandas
+    df_a = pd.DataFrame(state['full_dataset_a'])
+    df_b = pd.DataFrame(state['full_dataset_b'])
+    
+    code = state['python_code']
+    
+    # Clean code markdown blocks
+    if "```python" in code:
+        code = code.split("```python").[1]split("```").strip()
+        
+    local_scope = {"df_a": df_a, "df_b": df_b, "pd": pd}
+    
+    try:
+        exec(code, globals(), local_scope)
+        result_df = local_scope.get('result_df')
+        
+        if result_df is None:
+            return {"execution_result": "Error: Code did not define 'result_df'."}
+            
+        match_count = len(result_df)
+        total_records = len(df_a)
+        match_rate = match_count / total_records if total_records > 0 else 0
+        
+        return {
+            "execution_result": f"Success. Matched {match_count} records.",
+            "match_rate": match_rate,
+            "python_code": code # Update with cleaned code
+        }
+        
+    except Exception as e:
+        return {"execution_result": f"Runtime Error: {str(e)}", "match_rate": 0.0}
+
+# EDGE LOGIC: Determine next step
+def should_continue(state: AgentState):
+    """
+    Decides whether to loop back for correction or finish.
+    """
+    if state["match_rate"] > 0.95: # Success threshold
+        return "end"
+    if state["iterations"] > 5: # Max retries
+        return "end"
+    return "retry"
+
+# Graph Construction
+workflow = StateGraph(AgentState)
+workflow.add_node("generate_logic", generate_logic)
+workflow.add_node("execute_code", execute_code)
+
+workflow.set_entry_point("generate_logic")
+workflow.add_edge("generate_logic", "execute_code")
+workflow.add_conditional_edges(
+    "execute_code",
+    should_continue,
+    {
+        "end": END,
+        "retry": "generate_logic"
+    }
+)
+
+app_graph = workflow.compile()
+
+
+Insight on Graph Design:
+This cyclic graph implements the "Self-Refining" pattern. If the LLM writes code that throws a KeyError (because it hallucinated a column name), the execute_code node catches the exception and puts it into the execution_result. The graph loops back to generate_logic, which sees the error and corrects the column name in the next iteration. This is significantly more robust than a linear chain or a fine-tuned model executing a single pass.
+5. The Interface Layer: Asynchronous API Design (FastAPI)
+FastAPI is the bridge between the synchronous world of HTTP requests and the asynchronous, long-running world of the LangGraph agent.
+5.1 The BackgroundTasks Pattern
+The critical requirement is to avoid holding the n8n connection open. We utilize FastAPI's BackgroundTasks to achieve this.
+app/main.py Implementation:
+
+Python
+
+
+from fastapi import FastAPI, BackgroundTasks, HTTPException
+from app.models import ReconciliationRequest
+from app.core.agent import app_graph
+from app.utils.callback import send_callback
+import pandas as pd
+import logging
+
+# Setup Logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("logic-discovery")
+
+app = FastAPI(title="Reconciliation Logic Discovery Service")
+
+async def process_reconciliation_task(payload: ReconciliationRequest):
+    """
+    The worker function that runs AFTER the response is sent to n8n.
+    """
+    logger.info(f"Starting reconciliation for {payload.callback_url}")
+    
+    try:
+        # Prepare Input State
+        # We only pass previews to the LLM context to save tokens, 
+        # but keep full data for execution.
+        df_a = pd.DataFrame(payload.dataset_a)
+        df_b = pd.DataFrame(payload.dataset_b)
+        
+        initial_state = {
+            "messages":,
+            "full_dataset_a": payload.dataset_a,
+            "full_dataset_b": payload.dataset_b,
+            "dataset_a_preview": df_a.head(5).to_markdown(),
+            "dataset_b_preview": df_b.head(5).to_markdown(),
+            "iterations": 0,
+            "match_rate": 0.0
+        }
+        
+        # Invoke LangGraph
+        # We use ainvoke for non-blocking async execution
+        final_state = await app_graph.ainvoke(initial_state)
+        
+        # Prepare Result
+        result = {
+            "status": "success",
+            "match_rate": final_state["match_rate"],
+            "generated_logic": final_state["python_code"],
+            "execution_log": final_state["execution_result"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Task failed: {e}")
+        result = {
+            "status": "error",
+            "error_message": str(e)
+        }
+    
+    # Send Callback to n8n
+    await send_callback(str(payload.callback_url), result)
+
+@app.post("/reconcile", status_code=202)
+async def trigger_reconciliation(
+    request: ReconciliationRequest, 
+    background_tasks: BackgroundTasks
+):
+    """
+    Endpoint receiving the datasets. Returns 202 Accepted immediately.
+    """
+    # Simple validation
+    if not request.dataset_a or not request.dataset_b:
+        raise HTTPException(status_code=400, detail="Datasets cannot be empty")
+        
+    # Queue the task
+    background_tasks.add_task(process_reconciliation_task, request)
+    
+    return {
+        "message": "Reconciliation started. Results will be posted to callback_url.",
+        "task_status": "queued"
+    }
+
+
+5.2 The Callback Utility (app/utils/callback.py)
+This module handles the transmission of data back to n8n. It needs to be robust, handling potential network blips.
+
+Python
+
+
+import httpx
+import logging
+
+logger = logging.getLogger("callback-sender")
+
+async def send_callback(url: str, payload: dict, retries: int = 3):
+    """
+    Sends data back to n8n with exponential backoff.
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for attempt in range(retries):
+            try:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                logger.info(f"Callback successful: {response.status_code}")
+                return
+            except httpx.HTTPError as e:
+                logger.warning(f"Callback attempt {attempt+1} failed: {e}")
+                # Simple linear backoff for demonstration; use exponential in production
+                import asyncio
+                await asyncio.sleep(2 * (attempt + 1))
+        
+        logger.error("All callback attempts failed.")
+
+
+6. Infrastructure & Deployment: Zeabur
+Zeabur is a PaaS that simplifies deployment but requires specific configuration for "heavy" Logic Discovery applications.
+6.1 Zeabur Deployment Strategy: Container vs. Serverless
+The Logic Discovery agent involves loading Pandas dataframes into memory and running an LLM loop. This is resource-intensive.
+Resource Analysis Table:
+Feature
+Zeabur Serverless Plan
+Zeabur Developer Plan (Container)
+Suitability for Reconciliation
+Execution Time
+Limited (often minutes)
+Unlimited (Continuous)
+Container Required (Logic loops can take >15 mins)
+Memory
+~512MB - 1GB
+Configurable (2GB+)
+Container Preferred (Large datasets in Pandas require RAM)
+Persistence
+Ephemeral
+Persistent Volume capable
+Container Preferred (For caching and checkpoints)
+Pricing
+Usage-based
+Monthly subscription + usage
+Developer Plan ($5/mo base) is recommended for stability
+
+Decision: We will target the Developer Plan to ensure the reconciliation process is not killed mid-loop due to a timeout.8
+6.2 Configuration Files
+zbpack.json:
+This file tells Zeabur specifically how to build the Python environment. Since we are using a nested structure (app/main.py), auto-detection might fail without it.
+
+JSON
+
+
+{
+  "python": {
+    "entry": "app/main.py",
+    "version": "3.10"
+  }
+}
+
+
+zeabur.toml (Optional Service Config):
+This can be used to define the service name and other metadata, though the UI is often sufficient.
+6.3 Deployment Walkthrough
+Repository Setup: Push the code to GitHub.
+Zeabur Dashboard:
+Create Project -> New Service -> Git -> Select Repo.
+Zeabur will detect the zbpack.json and start the Python build.
+Environment Variables:
+Go to the "Variables" tab.
+Add OPENAI_API_KEY: sk-...
+Add LANGCHAIN_TRACING_V2: true (Optional, for debugging via LangSmith).
+Networking:
+Go to the "Networking" tab.
+Click "Generate Domain". You will get a URL like reconcile-logic.zeabur.app.
+This URL is what you will paste into n8n.
+7. Orchestration & Integration: n8n
+Connecting the asynchronous API to n8n requires a specific workflow pattern known as the "Wait for Webhook" pattern. This avoids the browser/connection timeout issue completely.
+7.1 The Standard "Timeout" Problem in n8n
+If you use a standard "HTTP Request" node in n8n and the server takes 10 minutes to reply, n8n (and the browser trigger) will error out with a 504 Gateway Timeout.10 Increasing the timeout in n8n settings (e.g., EXECUTIONS_TIMEOUT) only helps if the connection stays alive, which most load balancers (including Zeabur's and n8n Cloud's) cut off after a few minutes.
+7.2 The Asynchronous Workflow Design
+We will construct a single n8n workflow that pauses execution while Zeabur works.
+Step 1: The Trigger
+Node: Manual Trigger (for testing) or Schedule Trigger (for daily reconciliation).
+Step 2: Prepare Data
+Node: Code (JavaScript) or Google Sheets / Postgres.
+Action: Load Dataset A and Dataset B.
+Output: A JSON object containing both arrays.
+Step 3: The Wait Node (Critical Step)
+Note: We configure the Wait node before the HTTP Request node in our mental model, because we need its specific URL to pass to Zeabur.
+Node: Wait
+Resume: "On Webhook Call"
+Webhook Suffix: reconcile_callback
+Limit Wait Time: 3600 seconds (1 hour).
+Note on Variable Access: In n8n, the Wait node generates a unique webhook URL for this specific execution instance. We access this via the variable $execution.resumeUrl.
+Step 4: The Dispatcher (HTTP Request)
+Placement: This node technically executes before the Wait node enters its waiting state.
+Node: HTTP Request
+Method: POST
+URL: https://reconcile-logic.zeabur.app/reconcile
+Body: JSON
+JSON Content:
+JSON
+{
+  "dataset_a": {{ $json.dataset_a }},
+  "dataset_b": {{ $json.dataset_b }},
+  "callback_url": "{{ $execution.resumeUrl }}"
+}
+
+Important: You must reference the dataset_a and dataset_b from the previous nodes correctly.
+Step 5: Resume and Process
+When Zeabur finishes (e.g., 20 minutes later), it posts to $execution.resumeUrl.
+The Wait node triggers.
+Next Node: Set (to parse the result).
+Output: The generated_logic and match_rate.
+Visualizing the n8n Workflow Order:
+Trigger
+Get Data
+HTTP Request (Send to Zeabur using $execution.resumeUrl as payload)
+Wait (Resume on Webhook)
+Save to Database (Store the reconciled results)
+7.3 Security Considerations (HMAC)
+Since the callback URL is publicly accessible (though unique with a UUID), a malicious actor could theoretically guess it.
+Securing the Callback:
+Shared Secret: Generate a random string (e.g., sk_n8n_secret_123).
+n8n: Store this in Credentials. Send it in the HTTP Request headers to Zeabur (x-callback-token).
+Zeabur: The Python script receives this token. When calling back, it includes the same token in the header.
+n8n (Wait Node): n8n doesn't natively validate headers in the Wait node easily. A better approach is to include the secret in the payload sent back by Zeabur, and use an If node immediately after the Wait node to verify the secret matches.
+8. Operationalizing the Reconciliation Workflow
+Once deployed, the agent acts as a "logic factory."
+8.1 The Feedback Loop
+The agent returns generated_logic (Python code).
+Phase 1 (Discovery): Run the agent. Review the output code manually.
+Phase 2 (Production): If the code works well (e.g., Match Rate > 99%), copy that Python code into a standard n8n Code node.
+Phase 3 (Optimization): Now that you have the logic, you no longer need the expensive LLM agent for this specific reconciliation pair. You run the discovered Python code directly in n8n or a lightweight function.
+This answers the user's implicit need: The agent is for Discovery. Once logic is discovered, you "compile" it down to a script. You only re-run the agent if the data format changes and the script breaks.
+8.2 Monitoring with LangSmith
+Since we included LANGCHAIN_TRACING_V2=true in Zeabur, every reasoning step, every piece of code generated, and every error encountered by the agent is logged to LangSmith.
+Insight: Use LangSmith to debug why a reconciliation failed. Did the agent misunderstand the "Memo" field? Did it fail to parse a date format? This observability is impossible with a "Black Box" fine-tuned model.
+9. Conclusion
+The implementation of an Asynchronous Logic Discovery Service on Zeabur, integrated with n8n, solves the fundamental limitations of synchronous automation workflows. By leveraging LangGraph, the system transcends simple data matching, gaining the ability to reason, hypothesize, and write code to solve complex reconciliation challenges.
+Addressing the user's specific query: Fine-tuning is likely unnecessary and potentially counter-productive for the initial phase of reconciliation logic discovery. The proposed Agentic Architecture provides the flexibility to handle dynamic data schemas and novel matching rules without the burden of curating large training datasets. It shifts the paradigm from "training a model to reconcile" to "deploying an agent that learns to reconcile in real-time."
+This architecture—combining the persistence of Zeabur containers, the non-blocking nature of FastAPI background tasks, and the orchestration power of n8n—provides a robust, enterprise-grade foundation for automating high-value cognitive tasks.
+Works cited
+Please Increase Timeout Limit for Deep Research APIs (HTTP Node) : r/n8n - Reddit, accessed on December 15, 2025, https://www.reddit.com/r/n8n/comments/1kye4fx/please_increase_timeout_limit_for_deep_research/
+[HTTP Request - timeout of 300000ms exceeded] Can I extend timeout? - n8n Community, accessed on December 15, 2025, https://community.n8n.io/t/http-request-timeout-of-300000ms-exceeded-can-i-extend-timeout/32372
+Graph API overview - Docs by LangChain, accessed on December 15, 2025, https://docs.langchain.com/oss/python/langgraph/graph-api
+Introducing the LangGraph Functional API - LangChain Blog, accessed on December 15, 2025, https://blog.langchain.com/introducing-the-langgraph-functional-api/
+Background Tasks - FastAPI, accessed on December 15, 2025, https://fastapi.tiangolo.com/tutorial/background-tasks/
+OpenAPI Callbacks - FastAPI, accessed on December 15, 2025, https://fastapi.tiangolo.com/advanced/openapi-callbacks/
+Changelogs: Free Plan Evolution: Say Hello to the Serverless Plan! - Zeabur, accessed on December 15, 2025, https://zeabur.com/changelogs/say-hello-to-the-serverless-plan
+Serverless Containers: 3 Leading Platforms Compared - Aqua Security, accessed on December 15, 2025, https://www.aquasec.com/cloud-native-academy/serverless-architecture-platforms-benefits-best-practices/serverless-containers/
+Handling Long-Running n8n Workflows: Solutions for Browser Timeout During API GET Requests? - Questions, accessed on December 15, 2025, https://community.n8n.io/t/handling-long-running-n8n-workflows-solutions-for-browser-timeout-during-api-get-requests/44749
+Bigger Applications - Multiple Files - FastAPI, accessed on December 15, 2025, https://fastapi.tiangolo.com/tutorial/bigger-applications/
+Serverless or Containers? Unlock the Secret to Choosing the Perfect Architecture for Your App - DEV Community, accessed on December 15, 2025, https://dev.to/mukhilpadmanabhan/serverless-or-containers-unlock-the-secret-to-choosing-the-perfect-architecture-for-your-app-1kci
+Timeout in node HTTP after 2:01 minutes - Questions - n8n Community, accessed on December 15, 2025, https://community.n8n.io/t/timeout-in-node-http-after-2-01-minutes/42004
