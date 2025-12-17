@@ -1,72 +1,14 @@
 """
-FastAPI main application for the Reconciliation Agent.
+Minimal FastAPI app for testing deployment.
 """
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import logging
-import os
-from datetime import datetime
 
-# Basic logging setup
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-# Create FastAPI app
-app = FastAPI(
-    title="Reconciliation Agent",
-    description="AI-powered reconciliation logic discovery service",
-    version="1.0.0"
-)
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI(title="Test")
 
 @app.get("/")
-async def root():
-    """Root endpoint with service info."""
-    return {
-        "service": "Reconciliation Agent",
-        "version": "1.0.0",
-        "status": "running",
-        "docs": "/docs",
-        "health": "/health"
-    }
+def root():
+    return {"status": "ok"}
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
-# Lazy load routes to catch import errors
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Starting Reconciliation Agent...")
-    try:
-        from app.api.routes import router
-        app.include_router(router)
-        logger.info("Routes loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load routes: {e}")
-        import traceback
-        traceback.print_exc()
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8080
-    )
+def health():
+    return {"status": "healthy"}
