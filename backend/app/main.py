@@ -49,18 +49,15 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat()
     }
 
-# Load routes on startup
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Starting Reconciliation Agent...")
-    try:
-        from app.api.routes import router
-        app.include_router(router)
-        logger.info("API routes loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load routes: {e}")
-        import traceback
-        traceback.print_exc()
+# Import and register routes directly (not in startup event)
+try:
+    from app.api.routes import router
+    app.include_router(router)
+    logger.info("API routes loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load routes: {e}")
+    import traceback
+    traceback.print_exc()
 
 if __name__ == "__main__":
     import uvicorn
