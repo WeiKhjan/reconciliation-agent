@@ -14,7 +14,8 @@ class APIClient:
     """Client for the Reconciliation Agent API."""
 
     def __init__(self, base_url: str = None):
-        self.base_url = base_url or BACKEND_URL
+        # Remove trailing slash to prevent double slashes in URLs
+        self.base_url = (base_url or BACKEND_URL).rstrip("/")
         self.timeout = httpx.Timeout(300.0)  # 5 minute timeout for long operations
 
     def _handle_response(self, response: httpx.Response) -> Dict[str, Any]:
