@@ -43,10 +43,17 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    from app.config import settings
+
+    # Check if API key is configured
+    api_key_configured = bool(settings.OPENROUTER_API_KEY and len(settings.OPENROUTER_API_KEY) > 10)
+
     return {
         "status": "healthy",
         "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
+        "api_key_configured": api_key_configured,
+        "model": settings.OPENROUTER_MODEL
     }
 
 # Track route loading status
